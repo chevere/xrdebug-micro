@@ -1,0 +1,160 @@
+name: linux test
+
+# on:
+#   push:
+#     tags:
+#       - "*"
+on: [create, workflow_dispatch]
+
+env:
+  LWMBS_LIBRARIES: zstd,libssh2,curl,zlib,brotli,libffi,openssl,libzip,bzip2,nghttp2,onig,libyaml,xz,libxml2
+  LWMBS_EXTENSIONS: iconv,dom,xml,simplexml,xmlwriter,xmlreader,opcache,bcmath,pdo,phar,mysqlnd,mysqli,pdo,pdo_mysql,mbstring,mbregex,session,ctype,fileinfo,filter,tokenizer,curl,ffi,redis,sockets,openssl,zip,zlib,bz2,yaml,zstd,posix,pcntl,sysvshm,sysvsem,sysvmsg
+
+jobs:
+  libs:
+    name: ${{ matrix.libc }} PHP ${{ matrix.php-version }} ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    container: ${{ (matrix.libc == 'musl' && 'alpine:edge') || ( matrix.arch == 'x86_64' && 'centos:7' || 'fedora:rawhide') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ["8.2"]
+        libc: ["musl"]
+        arch: ["x86_64", "aarch64"]
+      max-parallel: 12
+    env:
+      tar: "micro-${{ matrix.php-version }}-${{ matrix.arch }}.tar.gz"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Calc sources hash
+        id: src_hash
+        run: |
+          set -xeo pipefail
+          case "${{ matrix.libc }}-${{ matrix.arch }}" in
+            "musl-x86_64") apk add php81 curl xz tar bzip2 zstd && ln -sf "$(which php81)" /usr/bin/php;;
+            "musl-aarch64") apk add php81 curl xz tar bzip2 zstd && ln -sf "$(which php81)" /usr/bin/php;;
+          esac
+          printf 'hash=' >> $GITHUB_OUTPUT
+          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} php fetch_source.php  \
+            "${{ env.LWMBS_LIBRARIES }}" \
+            "${{ env.LWMBS_EXTENSIONS }}" \
+            --phpVer=${{ matrix.php-version }} \
+            --hash >> $GITHUB_OUTPUT
+          echo
+
+      - name: Cache libraries
+        uses: actions/cache@v3
+        id: cache
+        with:
+          path: |
+            /src
+            /downloads
+            /lib/*.a
+            /lib/pkgconfig
+            /include
+          key: linux-${{ matrix.libc }}-${{ matrix.arch }}-v3-${{ steps.src_hash.outputs.hash }}
+
+      - name: Prepare tools and sources
+        id: prepare
+        run: |
+          set -xeo pipefail
+          export "PATH=/opt/php/bin:/opt/cmake/bin:$PATH"
+          cd /
+          case "${{ matrix.libc }}-${{ matrix.arch }}" in
+            "musl-aarch64") apk add --no-cache \
+                alpine-sdk automake autoconf bison flex re2c cmake \
+                libtool gettext-dev git \
+                vim \
+                xz tar &&
+              mkdir -p downloads &&
+              {
+                test -f downloads/aarch64-linux-musl-cross.tgz ||
+                curl -o downloads/aarch64-linux-musl-cross.tgz https://musl.cc/aarch64-linux-musl-cross.tgz
+              } &&
+              {
+                tar -xvf downloads/aarch64-linux-musl-cross.tgz -C / --strip-components=1 || :
+              } &&
+              export LWMBS_CC=aarch64-linux-musl-gcc &&
+              export LWMBS_CXX==aarch64-linux-musl-g++
+              ;;
+            "musl-x86_64") apk add --no-cache \
+                alpine-sdk automake autoconf bison flex re2c cmake clang lld linux-headers \
+                libtool gettext-dev git \
+                vim \
+                zlib-static zlib-dev \
+                bzip2 bzip2-static bzip2-dev \
+                zstd &&
+              export LWMBS_CC=clang &&
+              export LWMBS_CXX=clang++
+              ;;
+          esac
+          echo "cc=$LWMBS_CC" >> $GITHUB_OUTPUT
+          echo "cxx=$LWMBS_CXX" >> $GITHUB_OUTPUT
+          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} php ${GITHUB_WORKSPACE}/fetch_source.php \
+            "${{ env.LWMBS_LIBRARIES }}" \
+            "${{ env.LWMBS_EXTENSIONS }}" \
+            --phpVer=${{ matrix.php-version }} \
+            --shallowClone
+          mkdir -p ${GITHUB_WORKSPACE}/micro_shared
+          php ${GITHUB_WORKSPACE}/dump_licenses.php ${GITHUB_WORKSPACE}/micro_shared/licenses
+
+          php <<EOF
+          <?php
+          preg_match("/project\\(libzip\\s+VERSION\\s+([^\\r\\n]+)/m", file_get_contents('src/libzip/CMakeLists.txt'), \$m);
+          if (version_compare(\$m[1], "1.9.2", "<=")) {
+              echo "patching libzip\n";
+              chdir('src/libzip');
+              passthru("curl -sfSL https://github.com/nih-at/libzip/pull/349.patch | patch -p1");
+          }
+          EOF
+
+      - name: Prepare libraries
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          set -xeo pipefail
+          export "PATH=/opt/php/bin:/opt/cmake/bin:$PATH"
+          cd /
+          php ${GITHUB_WORKSPACE}/build_libs.php \
+            "${{ env.LWMBS_LIBRARIES }}" \
+            --cc=${{ steps.prepare.outputs.cc }} \
+            --cxx=${{ steps.prepare.outputs.cxx }} \
+            --arch=${{ matrix.arch }}
+
+      - name: Build micro
+        id: micro_shared
+        run: |
+          set -xeo pipefail
+          export "PATH=/opt/rh/devtoolset-11/root/usr/bin:/opt/php/bin:/opt/cmake/bin:$PATH"
+          cd /
+          php ${GITHUB_WORKSPACE}/build_micro.php \
+            "${{ env.LWMBS_LIBRARIES }}" \
+            "${{ env.LWMBS_EXTENSIONS }}" \
+            --cc=${{ steps.prepare.outputs.cc }} \
+            --cxx=${{ steps.prepare.outputs.cxx }} \
+            --arch=${{ matrix.arch }}
+          cp src/php-src/sapi/micro/micro.sfx src/php-src/sapi/micro/micro.sfx.debug ${GITHUB_WORKSPACE}/micro_shared
+          cd ${GITHUB_WORKSPACE}/micro_shared
+          mv micro.sfx micro-${{ matrix.arch }}.sfx
+          mv micro.sfx.debug micro-${{ matrix.arch }}.sfx.debug
+          cd ${GITHUB_WORKSPACE}
+
+      - name: Archive micro
+        uses: thedoctor0/zip-release@0.7.1
+        with:
+          path: "micro_shared"
+          type: "tar"
+          filename: "${{ env.tar }}"
+
+      - name: Upload artifacts
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: >
+            ${{ env.tar }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Remove php src to avoid cache
+        run: |
+          rm -rf /src/php-src

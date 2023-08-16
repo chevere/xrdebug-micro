@@ -1,0 +1,109 @@
+name: macos release
+
+on:
+  push:
+    tags:
+      - "*"
+
+env:
+  LWMBS_LIBRARIES: zstd,libssh2,curl,zlib,brotli,libffi,openssl,libzip,bzip2,nghttp2,onig,libyaml,xz,libxml2
+  LWMBS_EXTENSIONS: iconv,dom,xml,simplexml,xmlwriter,xmlreader,opcache,bcmath,pdo,phar,mysqlnd,mysqli,pdo,pdo_mysql,mbstring,mbregex,session,ctype,fileinfo,filter,tokenizer,curl,ffi,redis,sockets,openssl,zip,zlib,bz2,yaml,zstd,posix,pcntl,sysvshm,sysvsem,sysvmsg
+
+jobs:
+  macos:
+    name: PHP ${{ matrix.php-version }} ${{ matrix.arch }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ["8.2"]
+        arch: ["x86_64", "arm64"]
+      max-parallel: 6
+    env:
+      tar: "micro-${{ matrix.php-version }}-${{ matrix.arch }}.tar.gz"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Calc sources hash
+        id: src_hash
+        run: |
+          set -xeo pipefail
+          printf 'hash=' >> $GITHUB_OUTPUT
+          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} php fetch_source.php  \
+            "${{ env.LWMBS_LIBRARIES }}" \
+            "${{ env.LWMBS_EXTENSIONS }}" \
+            --phpVer=${{ matrix.php-version }} \
+            --hash >> $GITHUB_OUTPUT
+          echo
+
+      - name: Cache libraries
+        uses: actions/cache@v3
+        id: cache
+        with:
+          path: |
+            build/src
+            build/downloads
+            build/lib
+            build/include
+          key: macos-${{ matrix.arch }}-v3-${{ steps.src_hash.outputs.hash }}
+
+      - name: Prepare tools and sources
+        run: |
+          set -xeo pipefail
+          brew install bison re2c automake autoconf
+          brew link automake
+          mkdir -p build
+          cd build
+          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} php ../fetch_source.php  \
+            "${{ env.LWMBS_LIBRARIES }}" \
+            "${{ env.LWMBS_EXTENSIONS }}" \
+            --phpVer=${{ matrix.php-version }} \
+            --shallowClone
+          mkdir -p ${GITHUB_WORKSPACE}/micro
+          php ${GITHUB_WORKSPACE}/dump_licenses.php ${GITHUB_WORKSPACE}/micro/licenses
+
+      - name: Prepare libraries
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: build
+        run: |
+          set -xeo pipefail
+          export PATH="/usr/local/opt/bison/bin:/usr/local/opt/re2c/bin:$PATH"
+          php ../build_libs.php \
+            "${{ env.LWMBS_LIBRARIES }}" \
+            --arch=${{ matrix.arch }}
+
+      - name: Build micro
+        id: micro
+        working-directory: build
+        run: |
+          set -xeo pipefail
+          export PATH="/usr/local/opt/bison/bin:/usr/local/opt/re2c/bin:$PATH"
+          php ${GITHUB_WORKSPACE}/build_micro.php \
+            "${{ env.LWMBS_LIBRARIES }}" \
+            "${{ env.LWMBS_EXTENSIONS }}" \
+            --arch=${{ matrix.arch }}
+          cp src/php-src/sapi/micro/micro.sfx src/php-src/sapi/micro/micro.sfx.dwarf ${GITHUB_WORKSPACE}/micro
+          cd ${GITHUB_WORKSPACE}/micro
+          mv micro.sfx micro-${{ matrix.arch }}.sfx
+          mv micro.sfx.dwarf micro-${{ matrix.arch }}.sfx.dwarf
+          cd -
+
+      - name: Archive micro
+        uses: thedoctor0/zip-release@0.7.1
+        with:
+          path: "micro"
+          type: "tar"
+          filename: "${{ env.tar }}"
+
+      - name: Upload artifacts
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: >
+            ${{ env.tar }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Remove php src to avoid cache
+        run: |
+          rm -rf build/src/php-src
