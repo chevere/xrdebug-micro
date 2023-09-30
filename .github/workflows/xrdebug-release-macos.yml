@@ -6,7 +6,7 @@ on:
       - "*"
 
 env:
-  LWMBS_LIBRARIES: libssh2,curl,zlib,openssl,libzip,bzip2,nghttp2,onig,libyaml,xz,libxml2
+  LWMBS_LIBRARIES: curl,zlib,openssl,libzip,bzip2,nghttp2,onig,libyaml,xz,libxml2
   LWMBS_EXTENSIONS: iconv,dom,xml,xmlwriter,xmlreader,opcache,bcmath,phar,mbstring,mbregex,session,ctype,fileinfo,filter,tokenizer,curl,redis,sockets,openssl,zip,zlib,bz2,yaml,posix,pcntl,sysvshm,sysvsem,sysvmsg
 
 jobs:
