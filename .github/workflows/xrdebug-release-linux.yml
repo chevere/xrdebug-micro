@@ -92,7 +92,7 @@ jobs:
             "--fresh"
 
       - name: Build micro
-        id: micro_static
+        id: micro
         run: |
           set -xeo pipefail
           export "PATH=/opt/rh/devtoolset-11/root/usr/bin:/opt/php/bin:/opt/cmake/bin:$PATH"
@@ -105,8 +105,8 @@ jobs:
             --cxx=${{ steps.prepare.outputs.cxx }} \
             --arch=${{ matrix.arch }} \
             --allStatic
-          cp src/php-src/sapi/micro/micro.sfx src/php-src/sapi/micro/micro.sfx.debug ${GITHUB_WORKSPACE}/micro_static
-          cd ${GITHUB_WORKSPACE}/micro_static
+          cp src/php-src/sapi/micro/micro.sfx src/php-src/sapi/micro/micro.sfx.debug ${GITHUB_WORKSPACE}/micro
+          cd ${GITHUB_WORKSPACE}/micro
           mv micro.sfx micro-${{ matrix.arch }}.sfx
           mv micro.sfx.debug micro-${{ matrix.arch }}.sfx.debug
           cd ${GITHUB_WORKSPACE}
@@ -114,7 +114,7 @@ jobs:
       - name: Archive micro
         uses: thedoctor0/zip-release@0.7.1
         with:
-          path: "micro_static"
+          path: "micro"
           type: "tar"
           filename: "${{ env.tar }}"
 
