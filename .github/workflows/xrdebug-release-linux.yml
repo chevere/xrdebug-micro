@@ -88,8 +88,6 @@ jobs:
       - name: Prepare libraries
         working-directory: build
         run: |
-          set -xeo pipefail
-          export "PATH=/opt/php/bin:/opt/cmake/bin:$PATH"
           php ${GITHUB_WORKSPACE}/build_libs.php \
             "${{ env.LWMBS_LIBRARIES }}" \
             --cc=${{ steps.prepare.outputs.cc }} \
@@ -101,8 +99,6 @@ jobs:
         id: micro
         working-directory: build
         run: |
-          set -xeo pipefail
-          export "PATH=/opt/rh/devtoolset-11/root/usr/bin:/opt/php/bin:/opt/cmake/bin:$PATH"
           rm -f /src/php-src/sapi/micro/php_micro.lo
           php ${GITHUB_WORKSPACE}/build_micro.php \
             "${{ env.LWMBS_LIBRARIES }}" \
