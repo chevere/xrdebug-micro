@@ -1,0 +1,131 @@
+name: Release Linux
+
+# on:
+#   push:
+#     tags:
+#       - "*"
+on: [create, workflow_dispatch]
+
+env:
+  LWMBS_LIBRARIES: curl,zlib,openssl,libzip,bzip2,nghttp2,onig,libyaml,xz,libxml2
+  LWMBS_EXTENSIONS: iconv,dom,xml,xmlwriter,xmlreader,opcache,bcmath,phar,mbstring,mbregex,session,ctype,fileinfo,filter,tokenizer,curl,redis,sockets,openssl,zip,zlib,bz2,yaml,posix,pcntl,sysvshm,sysvsem,sysvmsg
+
+jobs:
+  linux:
+    name: ${{ matrix.libc }} PHP ${{ matrix.phpVer }} ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    container: "ghcr.io/dixyes/prepared-lwmbs:linux-${{ matrix.libc }}-${{ matrix.arch }}-src"
+    strategy:
+      fail-fast: false
+      matrix:
+        phpVer: ["8.2"]
+        libc: ["musl"]
+        arch: ["x86_64", "aarch64"]
+      max-parallel: 6
+    env:
+      tar: "micro-${{ matrix.phpVer }}-${{ matrix.arch }}.tar.gz"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Restore sources
+        uses: actions/cache/restore@v3
+        id: cache-restore
+        with:
+          path: |
+            /downloads
+            /src
+            /versionFile
+          key: ${{ runner.os }}-build-v1-${{ matrix.phpVer }}-${{ hashFiles('/versionFile') }}
+          restore-keys: |
+            ${{ runner.os }}-build-v1-${{ matrix.phpVer }}-
+
+      - name: Prepare lwmbs and sources
+        id: prepare
+        run: |
+          php ${GITHUB_WORKSPACE}/fetch_source.php \
+            "" \
+            "" \
+            "--phpVer=${{ matrix.phpVer }}" \
+            "--versionFile=/versionFile"
+          matched_key="${{ steps.cache-restore.outputs.cache-matched-key }}"
+          src_hash="$(sha256sum /versionFile | head -c 64)"
+          if [ "$matched_key" != "${matched_key##*${src_hash}}" ]
+          then
+            echo "srcHash=" >> "$GITHUB_OUTPUT"
+          else
+            echo "srcHash=${src_hash}" >> "$GITHUB_OUTPUT"
+          fi
+          case "${{ matrix.libc }}-${{ matrix.arch }}" in
+            "musl-aarch64") \
+              export LWMBS_CC=aarch64-linux-musl-gcc &&
+              export LWMBS_CXX==aarch64-linux-musl-g++
+              ;;
+            "musl-x86_64") \
+              export LWMBS_CC=clang &&
+              export LWMBS_CXX=clang++
+              ;;
+          esac
+          echo "cc=$LWMBS_CC" >> $GITHUB_OUTPUT
+          echo "cxx=$LWMBS_CXX" >> $GITHUB_OUTPUT
+
+      - name: Save sources
+        uses: actions/cache/save@v3
+        if: steps.prepare.outputs.srcHash != ''
+        with:
+          path: |
+            /downloads
+            /src
+            /versionFile
+          key: ${{ runner.os }}-build-v1-${{ matrix.phpVer }}-${{ steps.prepare.outputs.srcHash }}
+
+      - name: Prepare libraries
+        run: |
+          set -xeo pipefail
+          export "PATH=/opt/php/bin:/opt/cmake/bin:$PATH"
+          cd /
+          php ${GITHUB_WORKSPACE}/build_libs.php \
+            "${{ env.LWMBS_LIBRARIES }}" \
+            --cc=${{ steps.prepare.outputs.cc }} \
+            --cxx=${{ steps.prepare.outputs.cxx }} \
+            --arch=${{ matrix.arch }} \
+            "--fresh"
+
+      - name: Build micro
+        id: micro_static
+        run: |
+          set -xeo pipefail
+          export "PATH=/opt/rh/devtoolset-11/root/usr/bin:/opt/php/bin:/opt/cmake/bin:$PATH"
+          cd /
+          rm -f /src/php-src/sapi/micro/php_micro.lo
+          php ${GITHUB_WORKSPACE}/build_micro.php \
+            "${{ env.LWMBS_LIBRARIES }}" \
+            "${{ env.LWMBS_EXTENSIONS }}" \
+            --cc=${{ steps.prepare.outputs.cc }} \
+            --cxx=${{ steps.prepare.outputs.cxx }} \
+            --arch=${{ matrix.arch }} \
+            --allStatic
+          cp src/php-src/sapi/micro/micro.sfx src/php-src/sapi/micro/micro.sfx.debug ${GITHUB_WORKSPACE}/micro_static
+          cd ${GITHUB_WORKSPACE}/micro_static
+          mv micro.sfx micro-${{ matrix.arch }}.sfx
+          mv micro.sfx.debug micro-${{ matrix.arch }}.sfx.debug
+          cd ${GITHUB_WORKSPACE}
+
+      - name: Archive micro
+        uses: thedoctor0/zip-release@0.7.1
+        with:
+          path: "micro_static"
+          type: "tar"
+          filename: "${{ env.tar }}"
+
+      - name: Upload artifacts
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: >
+            ${{ env.tar }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Remove php src to avoid cache
+        run: |
+          rm -rf /src/php-src
