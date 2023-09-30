@@ -44,8 +44,8 @@ jobs:
         id: prepare
         run: |
           php ${GITHUB_WORKSPACE}/fetch_source.php \
-            "" \
-            "" \
+            "${{ env.LWMBS_LIBRARIES }}" \
+            "${{ env.LWMBS_EXTENSIONS }}" \
             "--phpVer=${{ matrix.phpVer }}" \
             "--versionFile=/versionFile"
           matched_key="${{ steps.cache-restore.outputs.cache-matched-key }}"
