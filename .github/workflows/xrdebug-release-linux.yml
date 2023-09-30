@@ -43,6 +43,7 @@ jobs:
       - name: Prepare lwmbs and sources
         id: prepare
         run: |
+          cd /
           php ${GITHUB_WORKSPACE}/fetch_source.php \
             "${{ env.LWMBS_LIBRARIES }}" \
             "${{ env.LWMBS_EXTENSIONS }}" \
@@ -85,20 +86,18 @@ jobs:
         run: |
           set -xeo pipefail
           export "PATH=/opt/php/bin:/opt/cmake/bin:$PATH"
-          cd /
           php ${GITHUB_WORKSPACE}/build_libs.php \
             "${{ env.LWMBS_LIBRARIES }}" \
             --cc=${{ steps.prepare.outputs.cc }} \
             --cxx=${{ steps.prepare.outputs.cxx }} \
             --arch=${{ matrix.arch }} \
-            "--fresh"
+            --fresh
 
       - name: Build micro
         id: micro
         run: |
           set -xeo pipefail
           export "PATH=/opt/rh/devtoolset-11/root/usr/bin:/opt/php/bin:/opt/cmake/bin:$PATH"
-          cd /
           rm -f /src/php-src/sapi/micro/php_micro.lo
           php ${GITHUB_WORKSPACE}/build_micro.php \
             "${{ env.LWMBS_LIBRARIES }}" \
