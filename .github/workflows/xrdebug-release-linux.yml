@@ -68,6 +68,8 @@ jobs:
           esac
           echo "cc=$LWMBS_CC" >> $GITHUB_OUTPUT
           echo "cxx=$LWMBS_CXX" >> $GITHUB_OUTPUT
+          mkdir -p ${GITHUB_WORKSPACE}/micro
+          php ${GITHUB_WORKSPACE}/dump_licenses.php ${GITHUB_WORKSPACE}/micro/licenses
 
       - name: Save sources
         uses: actions/cache/save@v3
