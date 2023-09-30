@@ -33,17 +33,20 @@ jobs:
         id: cache-restore
         with:
           path: |
-            /downloads
-            /src
+            build/downloads
+            build/src
             /versionFile
           key: ${{ runner.os }}-build-v1-${{ matrix.phpVer }}-${{ hashFiles('/versionFile') }}
           restore-keys: |
             ${{ runner.os }}-build-v1-${{ matrix.phpVer }}-
 
+      - name: Make build dir
+        run: mkdir -p build
+
       - name: Prepare lwmbs and sources
         id: prepare
+        working-directory: build
         run: |
-          cd /
           php ${GITHUB_WORKSPACE}/fetch_source.php \
             "${{ env.LWMBS_LIBRARIES }}" \
             "${{ env.LWMBS_EXTENSIONS }}" \
@@ -69,20 +72,19 @@ jobs:
           esac
           echo "cc=$LWMBS_CC" >> $GITHUB_OUTPUT
           echo "cxx=$LWMBS_CXX" >> $GITHUB_OUTPUT
-          mkdir -p ${GITHUB_WORKSPACE}/micro
-          php ${GITHUB_WORKSPACE}/dump_licenses.php ${GITHUB_WORKSPACE}/micro/licenses
 
       - name: Save sources
         uses: actions/cache/save@v3
         if: steps.prepare.outputs.srcHash != ''
         with:
           path: |
-            /downloads
-            /src
+            build/downloads
+            build/src
             /versionFile
           key: ${{ runner.os }}-build-v1-${{ matrix.phpVer }}-${{ steps.prepare.outputs.srcHash }}
 
       - name: Prepare libraries
+        working-directory: build
         run: |
           set -xeo pipefail
           export "PATH=/opt/php/bin:/opt/cmake/bin:$PATH"
@@ -95,6 +97,7 @@ jobs:
 
       - name: Build micro
         id: micro
+        working-directory: build
         run: |
           set -xeo pipefail
           export "PATH=/opt/rh/devtoolset-11/root/usr/bin:/opt/php/bin:/opt/cmake/bin:$PATH"
@@ -129,4 +132,4 @@ jobs:
 
       - name: Remove php src to avoid cache
         run: |
-          rm -rf /src/php-src
+          rm -rf build/src/php-src
