@@ -11,16 +11,16 @@ env:
 
 jobs:
   macos:
-    name: PHP ${{ matrix.php-version }} ${{ matrix.arch }}
+    name: PHP ${{ matrix.phpVer }} ${{ matrix.arch }}
     runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
-        php-version: ["8.2"]
+        phpVer: ["8.2"]
         arch: ["x86_64", "arm64"]
       max-parallel: 6
     env:
-      tar: "micro-${{ matrix.php-version }}-${{ matrix.arch }}.tar.gz"
+      tar: "micro-${{ matrix.phpVer }}-${{ matrix.arch }}.tar.gz"
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -33,7 +33,7 @@ jobs:
           GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} php fetch_source.php  \
             "${{ env.LWMBS_LIBRARIES }}" \
             "${{ env.LWMBS_EXTENSIONS }}" \
-            --phpVer=${{ matrix.php-version }} \
+            --phpVer=${{ matrix.phpVer }} \
             --hash >> $GITHUB_OUTPUT
           echo
 
@@ -48,17 +48,19 @@ jobs:
             build/include
           key: macos-${{ matrix.arch }}-v3-${{ steps.src_hash.outputs.hash }}
 
+      - name: Make build dir
+        run: mkdir -p build
+
       - name: Prepare tools and sources
+        working-directory: build
         run: |
           set -xeo pipefail
           brew install bison re2c automake autoconf
           brew link automake
-          mkdir -p build
-          cd build
-          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} php ../fetch_source.php  \
+          php ${GITHUB_WORKSPACE}/fetch_source.php  \
             "${{ env.LWMBS_LIBRARIES }}" \
             "${{ env.LWMBS_EXTENSIONS }}" \
-            --phpVer=${{ matrix.php-version }} \
+            --phpVer=${{ matrix.phpVer }} \
             --shallowClone
           mkdir -p ${GITHUB_WORKSPACE}/micro
           php ${GITHUB_WORKSPACE}/dump_licenses.php ${GITHUB_WORKSPACE}/micro/licenses
@@ -69,7 +71,7 @@ jobs:
         run: |
           set -xeo pipefail
           export PATH="/usr/local/opt/bison/bin:/usr/local/opt/re2c/bin:$PATH"
-          php ../build_libs.php \
+          php ${GITHUB_WORKSPACE}/build_libs.php \
             "${{ env.LWMBS_LIBRARIES }}" \
             --arch=${{ matrix.arch }}
 
@@ -87,7 +89,7 @@ jobs:
           cd ${GITHUB_WORKSPACE}/micro
           mv micro.sfx micro-${{ matrix.arch }}.sfx
           mv micro.sfx.dwarf micro-${{ matrix.arch }}.sfx.dwarf
-          cd -
+          cd ${GITHUB_WORKSPACE}
 
       - name: Archive micro
         uses: thedoctor0/zip-release@0.7.1
