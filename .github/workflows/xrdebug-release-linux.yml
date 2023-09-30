@@ -72,6 +72,7 @@ jobs:
           esac
           echo "cc=$LWMBS_CC" >> $GITHUB_OUTPUT
           echo "cxx=$LWMBS_CXX" >> $GITHUB_OUTPUT
+          php ${GITHUB_WORKSPACE}/dump_licenses.php ${GITHUB_WORKSPACE}/micro/licenses
 
       - name: Save sources
         uses: actions/cache/save@v3
@@ -109,6 +110,7 @@ jobs:
             --cxx=${{ steps.prepare.outputs.cxx }} \
             --arch=${{ matrix.arch }} \
             --allStatic
+          mkdir -p ${GITHUB_WORKSPACE}/micro
           cp src/php-src/sapi/micro/micro.sfx src/php-src/sapi/micro/micro.sfx.debug ${GITHUB_WORKSPACE}/micro
           cd ${GITHUB_WORKSPACE}/micro
           mv micro.sfx micro-${{ matrix.arch }}.sfx
