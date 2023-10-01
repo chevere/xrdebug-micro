@@ -7,7 +7,7 @@ name: Release macOS
 on: [create, workflow_dispatch]
 
 env:
-  LWMBS_LIBRARIES: curl,zlib,openssl,libzip,bzip2,nghttp2,onig,libyaml,xz,libxml2
+  LWMBS_LIBRARIES: libssh2,curl,zlib,openssl,libzip,bzip2,nghttp2,onig,libyaml,xz,libxml2
   LWMBS_EXTENSIONS: iconv,dom,xml,xmlwriter,xmlreader,opcache,bcmath,phar,mbstring,mbregex,session,ctype,fileinfo,filter,tokenizer,curl,redis,sockets,openssl,zip,zlib,bz2,yaml,posix,pcntl,sysvshm,sysvsem,sysvmsg
 
 jobs:
@@ -29,6 +29,7 @@ jobs:
       - name: Calc sources hash
         id: src_hash
         run: |
+          set -xeo pipefail
           printf 'hash=' >> $GITHUB_OUTPUT
           GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} php fetch_source.php  \
             "${{ env.LWMBS_LIBRARIES }}" \
@@ -48,35 +49,34 @@ jobs:
             build/include
           key: macos-${{ matrix.arch }}-v3-${{ steps.src_hash.outputs.hash }}
 
-      - name: Make build dir
-        run: mkdir -p build
-
       - name: Prepare tools and sources
-        working-directory: build
         run: |
+          set -xeo pipefail
           brew install bison re2c automake autoconf
           brew link automake
-          php ${GITHUB_WORKSPACE}/fetch_source.php  \
+          mkdir -p build
+          cd build
+          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} php ../fetch_source.php  \
             "${{ env.LWMBS_LIBRARIES }}" \
             "${{ env.LWMBS_EXTENSIONS }}" \
             --phpVer=${{ matrix.phpVer }} \
             --shallowClone
           mkdir -p ${GITHUB_WORKSPACE}/micro
           php ${GITHUB_WORKSPACE}/dump_licenses.php ${GITHUB_WORKSPACE}/micro/licenses
-
       - name: Prepare libraries
         if: steps.cache.outputs.cache-hit != 'true'
         working-directory: build
         run: |
+          set -xeo pipefail
           export PATH="/usr/local/opt/bison/bin:/usr/local/opt/re2c/bin:$PATH"
-          php ${GITHUB_WORKSPACE}/build_libs.php \
+          php ../build_libs.php \
             "${{ env.LWMBS_LIBRARIES }}" \
             --arch=${{ matrix.arch }}
-
       - name: Build micro
         id: micro
         working-directory: build
         run: |
+          set -xeo pipefail
           export PATH="/usr/local/opt/bison/bin:/usr/local/opt/re2c/bin:$PATH"
           php ${GITHUB_WORKSPACE}/build_micro.php \
             "${{ env.LWMBS_LIBRARIES }}" \
@@ -86,7 +86,7 @@ jobs:
           cd ${GITHUB_WORKSPACE}/micro
           mv micro.sfx micro-${{ matrix.arch }}.sfx
           mv micro.sfx.dwarf micro-${{ matrix.arch }}.sfx.dwarf
-          cd ${GITHUB_WORKSPACE}
+          cd -
 
       - name: Archive micro
         uses: thedoctor0/zip-release@0.7.1
