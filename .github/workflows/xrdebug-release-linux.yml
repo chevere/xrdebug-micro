@@ -12,7 +12,7 @@ env:
 
 jobs:
   build:
-    name: ${{ matrix.libc }} PHP ${{ matrix.phpVer }} ${{ matrix.arch }}
+    name: PHP ${{ matrix.phpVer }} ${{ matrix.arch }}
     runs-on: ubuntu-latest
     container: "ghcr.io/dixyes/prepared-lwmbs:linux-${{ matrix.libc }}-${{ matrix.arch }}-src"
     strategy:
@@ -23,7 +23,7 @@ jobs:
         arch: ["x86_64", "aarch64"]
       max-parallel: 6
     env:
-      tar: "micro-${{ matrix.phpVer }}-${{ matrix.arch }}.tar.gz"
+      tar: "linux-micro-${{ matrix.phpVer }}-${{ matrix.arch }}.tar.gz"
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -124,9 +124,6 @@ jobs:
           path: micro
           key: ${{ runner.os }}-${{ matrix.arch }}
 
-      - name: Remove php src to avoid cache
-        run: |
-          rm -rf build/src/php-src
   upload:
     name: Upload artifacts
     runs-on: ubuntu-latest
