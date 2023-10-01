@@ -29,7 +29,6 @@ jobs:
       - name: Calc sources hash
         id: src_hash
         run: |
-          set -xeo pipefail
           printf 'hash=' >> $GITHUB_OUTPUT
           GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} php fetch_source.php  \
             "${{ env.LWMBS_LIBRARIES }}" \
@@ -51,7 +50,6 @@ jobs:
 
       - name: Prepare tools and sources
         run: |
-          set -xeo pipefail
           brew install bison re2c automake autoconf
           brew link automake
           mkdir -p build
@@ -67,7 +65,6 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         working-directory: build
         run: |
-          set -xeo pipefail
           export PATH="/usr/local/opt/bison/bin:/usr/local/opt/re2c/bin:$PATH"
           php ../build_libs.php \
             "${{ env.LWMBS_LIBRARIES }}" \
@@ -76,7 +73,6 @@ jobs:
         id: micro
         working-directory: build
         run: |
-          set -xeo pipefail
           export PATH="/usr/local/opt/bison/bin:/usr/local/opt/re2c/bin:$PATH"
           php ${GITHUB_WORKSPACE}/build_micro.php \
             "${{ env.LWMBS_LIBRARIES }}" \
