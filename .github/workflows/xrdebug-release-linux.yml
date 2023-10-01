@@ -115,14 +115,17 @@ jobs:
           cd ${GITHUB_WORKSPACE}
 
       - name: Tar micro
-        run: tar -zcvf ${{ env.tar }} micro && ls
+        run: |
+          tar -zcvf ${{ env.tar }} micro
+          mkdir -p tar
+          mv ${{ env.tar }} tar
+          ls tar
 
-      - name: Cache micro
+      - name: Cache tar
         uses: actions/cache/save@v3
-        id: cache-micro
         with:
-          path: micro
-          key: ${{ runner.os }}-${{ matrix.arch }}
+          path: tar
+          key: ${{ runner.os }}-${{ matrix.arch }}-${{ github.sha }}
 
   upload:
     name: Upload artifacts
@@ -134,16 +137,17 @@ jobs:
     needs:
       - build
     steps:
-      - uses: actions/cache/restore@v3
-        id: cache-micro
+      - name: Restore tar
+        uses: actions/cache/restore@v3
         with:
-          path: micro
-          key: ${{ runner.os }}-${{ matrix.arch }}
+          fail-on-cache-miss: true
+          path: tar
+          key: ${{ runner.os }}-${{ matrix.arch }}-${{ github.sha }}
 
       - name: Upload artifacts
         uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
           artifacts: >
-            micro/*.tar
+            tar/*.tar.gz
           token: ${{ secrets.GITHUB_TOKEN }}
