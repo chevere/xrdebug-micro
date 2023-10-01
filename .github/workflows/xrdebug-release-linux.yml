@@ -115,13 +115,13 @@ jobs:
           cd ${GITHUB_WORKSPACE}
 
       - name: Tar micro
-        run: tar -zcvf ${{ env.tar }} micro && ls micro
+        run: tar -zcvf ${{ env.tar }} micro && ls
 
       - name: Cache micro
         uses: actions/cache/save@v3
         id: cache-micro
         with:
-          path: build/micro
+          path: micro
           key: ${{ runner.os }}-${{ matrix.arch }}
 
       - name: Remove php src to avoid cache
@@ -140,7 +140,7 @@ jobs:
       - uses: actions/cache/restore@v3
         id: cache-micro
         with:
-          path: build/micro
+          path: micro
           key: ${{ runner.os }}-${{ matrix.arch }}
 
       - name: Upload artifacts
@@ -148,5 +148,5 @@ jobs:
         with:
           allowUpdates: true
           artifacts: >
-            build/micro/*.tar
+            micro/*.tar
           token: ${{ secrets.GITHUB_TOKEN }}
