@@ -51,7 +51,6 @@ jobs:
       - name: Prepare tools and sources
         run: |
           brew install bison re2c automake autoconf
-          brew link automake
           mkdir -p build
           cd build
           GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} php ../fetch_source.php  \
