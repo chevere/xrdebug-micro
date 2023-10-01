@@ -11,12 +11,12 @@ env:
   LWMBS_EXTENSIONS: iconv,dom,xml,xmlwriter,xmlreader,opcache,bcmath,phar,mbstring,mbregex,session,ctype,fileinfo,filter,tokenizer,curl,redis,sockets,openssl,zip,zlib,bz2,yaml,posix,pcntl,sysvshm,sysvsem,sysvmsg
 
 jobs:
-  linux:
+  build:
     name: ${{ matrix.libc }} PHP ${{ matrix.phpVer }} ${{ matrix.arch }}
     runs-on: ubuntu-latest
     container: "ghcr.io/dixyes/prepared-lwmbs:linux-${{ matrix.libc }}-${{ matrix.arch }}-src"
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         phpVer: ["8.2"]
         libc: ["musl"]
@@ -40,14 +40,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-v1-${{ matrix.phpVer }}-
 
-      - name: Make build dir
-        run: mkdir -p build
+      - name: Make dirs
+        run: mkdir -p {build,micro}
 
       - name: Prepare lwmbs and sources
         id: prepare
         working-directory: build
         run: |
-          php ${GITHUB_WORKSPACE}/fetch_source.php \
+          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} php ${GITHUB_WORKSPACE}/fetch_source.php \
             "${{ env.LWMBS_LIBRARIES }}" \
             "${{ env.LWMBS_EXTENSIONS }}" \
             "--phpVer=${{ matrix.phpVer }}" \
@@ -72,7 +72,6 @@ jobs:
           esac
           echo "cc=$LWMBS_CC" >> $GITHUB_OUTPUT
           echo "cxx=$LWMBS_CXX" >> $GITHUB_OUTPUT
-          mkdir -p ${GITHUB_WORKSPACE}/micro
           php ${GITHUB_WORKSPACE}/dump_licenses.php ${GITHUB_WORKSPACE}/micro/licenses
 
       - name: Save sources
@@ -113,21 +112,39 @@ jobs:
           mv micro.sfx.debug micro-${{ matrix.arch }}.sfx.debug
           cd ${GITHUB_WORKSPACE}
 
-      - name: Archive micro
-        uses: thedoctor0/zip-release@0.7.1
+      - name: Tar micro
+        run: tar -zcvf ${{ env.tar }} micro && ls micro
+
+      - name: Cache micro
+        uses: actions/cache/save@v3
+        id: cache-micro
         with:
-          path: "micro"
-          type: "tar"
-          filename: "${{ env.tar }}"
+          path: build/micro
+          key: ${{ runner.os }}-${{ matrix.arch }}
+
+      - name: Remove php src to avoid cache
+        run: |
+          rm -rf build/src/php-src
+  upload:
+    name: Upload artifacts
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        arch: ["x86_64", "aarch64"]
+    needs:
+      - build
+    steps:
+      - uses: actions/cache/restore@v3
+        id: cache-micro
+        with:
+          path: build/micro
+          key: ${{ runner.os }}-${{ matrix.arch }}
 
       - name: Upload artifacts
         uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
           artifacts: >
-            ${{ env.tar }}
+            build/micro/*.tar
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Remove php src to avoid cache
-        run: |
-          rm -rf build/src/php-src
