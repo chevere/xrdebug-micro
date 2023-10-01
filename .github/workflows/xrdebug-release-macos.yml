@@ -60,7 +60,6 @@ jobs:
             "${{ env.LWMBS_EXTENSIONS }}" \
             --phpVer=${{ matrix.phpVer }} \
             --shallowClone
-          mkdir -p ${GITHUB_WORKSPACE}/micro
           php ${GITHUB_WORKSPACE}/dump_licenses.php ${GITHUB_WORKSPACE}/micro/licenses
 
       - name: Prepare libraries
