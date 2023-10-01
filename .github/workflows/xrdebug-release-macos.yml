@@ -48,26 +48,30 @@ jobs:
             build/include
           key: macos-${{ matrix.arch }}-v3-${{ steps.src_hash.outputs.hash }}
 
+      - name: Make dirs
+        run: mkdir -p {build,micro}
+
       - name: Prepare tools and sources
+        working-directory: build
         run: |
           brew install bison re2c automake autoconf
-          mkdir -p build
-          cd build
-          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} php ../fetch_source.php  \
+          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} php ${GITHUB_WORKSPACE}/fetch_source.php  \
             "${{ env.LWMBS_LIBRARIES }}" \
             "${{ env.LWMBS_EXTENSIONS }}" \
             --phpVer=${{ matrix.phpVer }} \
             --shallowClone
           mkdir -p ${GITHUB_WORKSPACE}/micro
           php ${GITHUB_WORKSPACE}/dump_licenses.php ${GITHUB_WORKSPACE}/micro/licenses
+
       - name: Prepare libraries
         if: steps.cache.outputs.cache-hit != 'true'
         working-directory: build
         run: |
           export PATH="/usr/local/opt/bison/bin:/usr/local/opt/re2c/bin:$PATH"
-          php ../build_libs.php \
+          php ${GITHUB_WORKSPACE}/build_libs.php \
             "${{ env.LWMBS_LIBRARIES }}" \
             --arch=${{ matrix.arch }}
+
       - name: Build micro
         id: micro
         working-directory: build
@@ -81,7 +85,7 @@ jobs:
           cd ${GITHUB_WORKSPACE}/micro
           mv micro.sfx micro-${{ matrix.arch }}.sfx
           mv micro.sfx.dwarf micro-${{ matrix.arch }}.sfx.dwarf
-          cd -
+          cd ${GITHUB_WORKSPACE}
 
       - name: Archive micro
         uses: thedoctor0/zip-release@0.7.1
