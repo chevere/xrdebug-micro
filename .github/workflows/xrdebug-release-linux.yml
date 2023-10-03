@@ -12,14 +12,13 @@ env:
 
 jobs:
   build:
-    name: PHP ${{ matrix.phpVer }} ${{ matrix.arch }}
+    name: PHP ${{ matrix.phpVer }} Linux ${{ matrix.arch }}
     runs-on: ubuntu-latest
-    container: "ghcr.io/dixyes/prepared-lwmbs:linux-${{ matrix.libc }}-${{ matrix.arch }}-src"
+    container: "ghcr.io/dixyes/prepared-lwmbs:linux-musl-${{ matrix.arch }}-src"
     strategy:
       fail-fast: true
       matrix:
         phpVer: ["8.2"]
-        libc: ["musl"]
         arch: ["x86_64", "aarch64"]
       max-parallel: 6
     env:
@@ -62,7 +61,7 @@ jobs:
           else
             echo "srcHash=${src_hash}" >> "$GITHUB_OUTPUT"
           fi
-          case "${{ matrix.libc }}-${{ matrix.arch }}" in
+          case "musl-${{ matrix.arch }}" in
             "musl-aarch64") \
               export LWMBS_CC=aarch64-linux-musl-gcc &&
               export LWMBS_CXX==aarch64-linux-musl-g++
@@ -110,9 +109,9 @@ jobs:
             --allStatic
           cp src/php-src/sapi/micro/micro.sfx src/php-src/sapi/micro/micro.sfx.debug ${GITHUB_WORKSPACE}/micro
           cd ${GITHUB_WORKSPACE}/micro
-          mv micro.sfx micro-${{ matrix.arch }}.sfx
-          mv micro.sfx.debug micro-${{ matrix.arch }}.sfx.debug
-          cd ${GITHUB_WORKSPACE}
+          mv micro.sfx micro-linux-${{ matrix.arch }}.sfx
+          mv micro.sfx.debug micro-linux-${{ matrix.arch }}.sfx.debug
+          cd -
 
       - name: Tar micro
         run: |
@@ -125,7 +124,7 @@ jobs:
         uses: actions/cache/save@v3
         with:
           path: tar
-          key: ${{ runner.os }}-${{ matrix.arch }}-${{ github.sha }}
+          key: ${{ runner.os }}-linux-${{ matrix.arch }}-${{ github.sha }}
 
   upload:
     name: Upload artifacts
@@ -142,7 +141,7 @@ jobs:
         with:
           fail-on-cache-miss: true
           path: tar
-          key: ${{ runner.os }}-${{ matrix.arch }}-${{ github.sha }}
+          key: ${{ runner.os }}-linux-${{ matrix.arch }}-${{ github.sha }}
 
       - name: Upload artifacts
         uses: ncipollo/release-action@v1
