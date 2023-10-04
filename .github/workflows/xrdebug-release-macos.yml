@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         phpVer: ["8.2"]
-        arch: ["x86_64", "aarch64"]
+        arch: ["x86_64", "arm64"]
       max-parallel: 6
     env:
       tar: "php-${{ matrix.phpVer }}-macos-${{ matrix.arch }}.tar.gz"
@@ -54,7 +54,7 @@ jobs:
           mkdir -p micro/licenses
 
       - name: Prepare brew
-        run: brew install bison re2c automake autoconf
+        run: brew install bison re2c automake autoconf pkg-config cmake
 
       - name: Prepare tools and sources
         working-directory: build
