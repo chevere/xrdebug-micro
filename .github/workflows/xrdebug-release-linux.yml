@@ -10,8 +10,6 @@ jobs:
   build:
     name: PHP ${{ matrix.phpVer }} Linux ${{ matrix.arch }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     container: "ghcr.io/dixyes/prepared-lwmbs:linux-musl-${{ matrix.arch }}-src"
     strategy:
       fail-fast: true
@@ -127,6 +125,8 @@ jobs:
   upload:
     name: Upload artifacts
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     strategy:
       fail-fast: true
       matrix:
