@@ -1,9 +1,5 @@
 name: Release Linux
 
-# on:
-#   push:
-#     tags:
-#       - "*"
 on: [create, workflow_dispatch]
 
 env:

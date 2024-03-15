@@ -16,3 +16,5 @@
 !common
 !common/**
 !src.json
+/build
+/micro
